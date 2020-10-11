@@ -1,0 +1,313 @@
+#!/bin/bash
+# Updates everything able to be updated
+# Coded by CoolCat467. Parts of code copied from Adam Davenport's Menu System. All rights reserved.
+
+# VERSION 2.0.0
+
+## VARIABLE SETUP ##
+VArgz="False"
+VFlagRegular=0
+VFlagHomebrew=0
+VFlagAptOnly=0
+Vcron=0
+VUnum=1
+VBrewState="NULL"
+VSudoed="False"
+
+
+## FUNCTIONS ###
+
+function Udnum {
+	VUnum=$(("$VUnum" + "1"))
+}
+
+function AuthSudo {
+	if [ "$VSudoed" != "True" ]
+	then
+		echo
+		echo "##########################################################"
+		echo "One (or more) of the update programs requires sudo access."
+		echo
+		echo "Please enter the sudo password to continue."
+		sudo -v && VSudoed="True"
+		echo "##########################################################"
+	fi
+}
+
+function StartBrew {
+	echo
+	echo "$VUnum - Brew"
+	if [ "$VSudoed" != "True" ]
+	then
+		eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)
+		VBrewState=$(brew doctor)
+	else
+		VBrewState="'sudo brew' is bad, man. It could explode!"
+	fi
+
+	if [ "$VBrewState" = "Your system is ready to brew." ]
+	then
+		brew missing
+		brew update
+		brew upgrade
+		brew cleanup
+	fi
+
+	if [ '$VBrewState' = "" ]
+	then
+		echo "Homebrew is not installed!"
+		VBrewState="Your system is ready to brew." # Make it skip the doctor warning
+	fi
+
+	[[ "$VSudoed" = "True" ]] && VBrewState="Your system is ready to brew." # Make it skip the doctor warning
+
+
+	if [ "$VBrewState" != "Your system is ready to brew." ]
+	then
+		echo "There is a problem with homebrew."
+		echo "Please run 'brew doctor' to see the problem."
+	fi
+
+	if [ "$VSudoed" != "True" ]
+	then
+		echo "This is a programming error. This should never appear."
+		echo "Error: Tried to run brew as root. Do not run AuthSudo function before StartBrew"
+	fi
+	Udnum
+}
+
+function StartRubyGems {
+	echo
+	echo "$VUnum - RubyGems"
+	sudo gem install rubygems-update
+	sudo update_rubygems
+	#sudo gem update
+	sudo gem update "sudo gem outdated | cut -d ' ' -f 1"
+	sudo gem update --system
+	Udnum
+}
+
+function StartPython {
+	echo
+	echo "$VUnum - Python"
+	python3 -m pip install --upgrade pip --user
+	pip3 check
+	VCat=$(which pipupdate)
+	if [ $VCat != '' ]
+	then
+		echo ""
+		echo "Please wait..."
+		VCat=$(pipupdate)
+		[[ "$VCat" != "NOPACKAGES" ]] && [[ "$VCat" != "Requirement" ]] && $($VCat)
+		[[ "$VCat" = "NOPACKAGES" ]] && echo "All pip packages up to date."
+	else
+		pip3 list --outdated --format=freeze | grep -v '^\-e' | cut -d = -f 1  | sudo xargs -n1 pip3 install --upgrade
+	fi
+	Udnum
+}
+
+function updateCerts {
+	echo
+	echo "$VUnum - Update Certificates"
+	sudo update-ca-certificates
+	Udnum
+}
+
+function StartApt {
+	echo
+	echo "$VUnum - Apt"
+	sudo apt-get update
+	sudo apt-get -y dist-upgrade
+	sudo apt-get -y upgrade
+	sudo apt --fix-broken -y install
+	sudo apt-get clean
+	echo
+	echo "Cleaning up..."
+	sudo apt-get autoclean
+	sudo apt-get purge
+	sudo apt-get autoremove
+	sudo apt-get check
+	Udnum
+}
+
+function StartRazz {
+	echo
+	echo "$VUnum - Raspberry Pi"
+	sudo rpi-update
+	Udnum
+}
+
+function startSnap {
+	echo
+	echo "$VUnum - Snap"
+	sudo snap refresh 
+	Udnum
+}
+
+function menu {
+	### WELCOME SCREEN ###
+	clear
+	echo "Welcome to the Update Screen!"
+	echo
+	echo "1. - Update All"
+	echo "2. - Update None"
+	echo "3. - Update Chosen"
+	echo "4. - Update Essentils"
+	echo
+	echo -n "Please enter an option and press RETURN: "
+	read input
+	choose
+}
+
+function choose {
+	### MENU INPUT ###
+
+	# INPUT ERROR
+	[[ "$input" != "1" ]] &&
+		[[ "$input" != "2" ]] &&
+			[[ "$input" != "3" ]] &&
+				[[ "$input" != "4" ]] &&
+					clear &&
+					echo "Please enter the numeric value of the option." &&
+					echo "(press RETURN to continue)" &&
+					read &&
+					menu
+	# VALID INPUT
+	[[ "$input" = "1" ]] && UpdatAll
+	[[ "$input" = "2" ]] && doquit
+	[[ "$input" = "3" ]] && ChooseUpdat
+	[[ "$input" = "4" ]] && UpdatEss
+}
+
+function UpdatAll {
+	clear
+	echo "Begining Update..."
+	StartBrew
+	AuthSudo
+	StartPython
+	StartApt
+	startSnap
+	StartRazz
+	StartRubyGems
+	quit
+}
+
+function doquit {
+	clear
+	echo "You should be sure to update regularly."
+}
+
+function UpdatEss {
+	AuthSudo
+	clear
+	echo "Begining Update..."
+	StartApt
+	startSnap
+	StartRazz
+	quit
+}
+
+function ChooseUpdat {
+	clear
+	######### Selection Screen ##########
+	echo "Please enter y if the"
+	echo "displayed item should"
+	echo "be updated, and then"
+	echo "press enter."
+	echo
+	echo -n "1 - Brew         - "
+	read brw
+	echo -n "2 - Python       - "
+	read phy
+	echo -n "3 - RubyGems     - "
+	read gemz
+	echo -n "4 - Apt          - "
+	read appt
+	echo -n "5 - Raspberry Pi - "
+	read pie
+	echo -n "6 - Snap         - "
+	read snp
+	echo -n "7 - Certificates - "
+	read certs
+	echo
+	run
+}
+
+function run {
+	######### If y, start ##########
+	echo "Begining Update..."
+	[[ "$certs" = "y" ]] && updateCerts
+	[[ "$brw" = "y" ]] && StartBrew
+	AuthSudo
+	[[ "$phy" = "y" ]] && StartPython
+	[[ "$appt" = "y" ]] && StartApt
+	[[ "$snp" = "y" ]] && startSnap
+	[[ "$pie" = "y" ]] && StartRazz
+	[[ "$gemz" = "y" ]] && StartRubyGems
+	quit
+}
+
+function UpdateRegular {
+	phy=y
+	appt=y
+	snp=y
+	run
+	quit
+}
+
+function UpdateHomebrew {
+	brw=y
+	gemz=y
+	run
+	quit
+}
+
+function UpdateAptOnly {
+	appt=y
+	run
+	quit
+}
+
+function UpdatePythonOnly {
+	phy=y
+	run
+	quit
+}
+
+function DisplayOptions {
+	echo "Usage:"
+	echo "  update [-r, -b, -a, -h]"
+	echo "    -r : Update Regular (Python, Aptitude)"
+	echo "    -b : Update Homebrew (Homebrew, RubyGems)"
+	echo "    -a : Update Aptitude"
+	echo "    -p : Update Python"
+	echo "    -h : Display Options"
+	echo
+	echo "Created by CoolCat467"
+}
+
+function quit {
+	echo
+	echo "A reboot may be required to apply some changes."
+	exit 0
+}
+
+function main {
+	[[ "$VFlagRegular" = "1" ]] && UpdateRegular
+	[[ "$VFlagHomebrew" = "1" ]] && UpdateHomebrew
+	[[ "$VFlagAptOnly" = "1" ]] && UpdateAptOnly
+	[[ "$VFlagPytOnly" = "1" ]] && UpdatePythonOnly
+	[[ "$VFlagHelp" = "1" ]] && DisplayOptions
+	[[ "$VArgz" != "True" ]] && menu
+}
+
+### MAIN ###
+[[ "$1" = "-r" ]] && VFlagRegular=1 && VArgz="True"
+[[ "$1" = "-b" ]] && VFlagHomebrew=1 && VArgz="True"
+[[ "$1" = "-a" ]] && VFlagAptOnly=1 && VArgz="True"
+[[ "$1" = "-p" ]] && VFlagPytOnly=1 && VArgz="True"
+
+[[ "$1" = "-h" ]] && VFlagHelp=1 && VArgz="True"
+[[ "$1" = "-help" ]] && VFlagHelp=1 && VArgz="True"
+[[ "$1" = "--help" ]] && VFlagHelp=1 && VArgz="True"
+main

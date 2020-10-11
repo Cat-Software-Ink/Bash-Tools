@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+# Hello - Terminal greeter and login logger
+# -*- coding: utf-8 -*-
+
+# Programmed by CoolCat467
+
+__title__ = 'Hello - Terminal greeter and login logger'
+__author__ = 'CoolCat467'
+__version__ = '0.0.0'
+__ver_major__ = 0
+__ver_minor__ = 0
+__ver_patch__ = 0
+
+import os, subprocess, time
+
+# Below are settings you can safely modify.
+SHOWTIME = True
+# NAVYTIME only affects SHOWTIME's prompt. Sorry.
+NAVYTIME = False
+SHOWUPTIME = True
+
+LOGLOGINS = True
+# Below only apply if LOGLOGINS is True.
+LOGFNAME = 'logins.txt'
+LOGSAVEINTERVAL = 3600 * 8#8 hours
+SHOWLASTLOGIN = False
+SHOWTIMESINCELASTLOGIN = True
+# End of settings you should modify, with the exception of NAME.
+
+HOME = os.path.expanduser('~')
+# If your home directory is not name your name, comment out this line with #
+NAME = os.path.split(HOME)[1].title()
+# and uncomment the following line and enter your name
+#NAME = 'Bob'
+
+LOGDIR = HOME+'/.bin/dep'
+LOGPATH = LOGDIR+'/'+LOGFNAME
+
+def callCommand(command):
+    """Calls a given command in a subshell and returns the output as a string"""
+    if command != 'cat /proc/uptime':
+        print('Danger: Script modified and is trying to run command "%s". Careful.' % str(command))
+        os.sys.abort()
+    try:
+        process = subprocess.Popen(str(command).split(' '),
+                                   stdout=subprocess.PIPE)#Call the process and pipe results back to us when done
+        output = process.communicate()[0]
+    except FileNotFoundError:#If the command does not exist, return nothing
+        return ''
+    try:
+        return ''.join([chr(i) for i in output])
+    except TypeError:#If the output is text (somehow, in all testing it returns ascii values), return the text
+        return str(output)
+
+def save(path, string):
+    """Save a string to a file at <path>."""
+    with open(path, 'w', encoding='utf-8') as saveFile:
+        saveFile.write(string)
+        saveFile.close()
+
+def load(path):
+    """Return a string from file at <path>."""
+    try:
+        with open(path, 'r', encoding='utf-8') as loadFile:
+            data = loadFile.read()
+            loadFile.close()
+    except FileNotFoundError:
+        save(path, '')
+    else:
+        return data
+    return ''
+
+def splitTime(seconds, precision=14):
+    """Split time into decades, years, months, weeks, days, hours, minutes, and seconds."""
+    seconds = int(seconds)
+    def modTime(sec, num):
+        smod = sec % num
+        x = int((sec - smod) / num)
+        return x, smod
+    
+    #['seconds', 'minutes', 'hours', 'days', 'weeks', 'months', 'years', 'decades', 'centuries', 'millenniums', 'ages', 'epochs', 'eras', 'eons']
+    values = [1, 60, 60, 24, 7, 365/7/12, 12, 10, 10, 10, 1000, 10, 10, 5]
+    mults = {0:values[0]}
+    for i in range(len(values)):
+        mults[i+1] = round(mults[i] * values[i])
+    divs = list(reversed(mults.values()))[:-1]
+    
+    ret = []
+    for num in divs:
+        t, seconds = modTime(seconds, num)
+        ret.append(t)
+    
+##    decades, seconds = modTime(seconds, 315576000)
+##    years, seconds = modTime(seconds, 31557600)
+##    months, seconds = modTime(seconds, 2629800)
+##    weeks, seconds = modTime(seconds, 604800)
+##    days, seconds = modTime(seconds, 86400)
+##    hours, seconds = modTime(seconds, 3600)
+##    minutes, seconds = modTime(seconds, 60)
+##    
+##    ret = decades, years, months, weeks, days, hours, minutes, seconds
+    return ret[-(int(precision)):]
+
+def printTime(seconds, precision=14, onlyReq=True):
+    """Returns time using the output of splitTime."""
+##    times = ['seconds', 'minutes', 'hours', 'days', 'weeks', 'months', 'years', 'decades', 'centuries', 'millenniums', 'ages', 'epochs', 'eras', 'eons']
+##    times.reverse()
+    times = ['eons', 'eras', 'epochs', 'ages', 'millenniums', 'centuries', 'decades', 'years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds']
+    split = splitTime(seconds, precision)
+    if onlyReq:
+        # Find the last actually used digit of precision
+        #(we have probrably not been active for eons, and so no need to tell anyone that.
+        precision = len(split)
+        for i in range(precision):
+            if split[i] != 0:
+                break
+        precision -= i
+        split = split[-precision:]
+    times = times[-int(precision):]
+    return ', '.join(['%i %s' % (value, title) if title != times[-1] else 'and %i %s' % (value, title) for value, title in zip(split, times)])
+
+def main():
+    # Get the current system time
+    hour, minute, seccond = map(int, ' '.join(time.asctime().split('  ')).split(' ')[3].split(':'))
+    hour %= 24
+    
+    # Decide what time of day it is.
+    timesOfDay = ['Morning', 'Afternoon', 'Evening', 'Night']
+    if hour > 4 and hour < 12:
+        select = 0
+    elif hour > 11 and hour < 19:
+        # "It is usually from 12 PM to 6 PM, but during winter it may be from 12 PM to 4 PM and during summer it may be from 12 PM to 8 PM."
+        select = 1
+    elif hour > 18 and hour < 22:
+        select = 2
+##    elif hour > 21:
+    else:
+        select = 3
+    
+    # Tell <NAME> "Good <time of day> <name>."
+    timeOfDay = timesOfDay[select]
+    print('Good %s %s.' % (timeOfDay, NAME), end='')
+    
+    if SHOWTIME:
+        ph, pm = str(hour) if NAVYTIME else str(hour % 12), str(minute)
+        if len(ph) == 1:
+            ph = '0'+ph
+        if len(pm) == 1:
+            pm = '0'+pm
+        add = ''
+        if not NAVYTIME:
+            add = ' '+('AM', 'PM')[int(hour > 12)]
+        print(' Current Time is %s:%s%s.' % (ph, pm, add))
+    
+    if SHOWUPTIME:
+        # See how long we've been alive
+        uptimeRes = callCommand('cat /proc/uptime')
+        uptime = int(float(uptimeRes.split(' ')[0].strip()))
+        
+        # Tell <NAME> how long the system has been active.
+        print('System has been active for %s.' % printTime(uptime, 14, True))
+    
+    if LOGLOGINS:
+        # Get the last line of the time log file, zero if no data.
+        log = load(LOGPATH).splitlines()
+        if len(log):
+            last = int(log[-1])
+        else:
+            last = 0
+        
+        # If the current time is greater than the last log time,
+        if time.time() > last + LOGSAVEINTERVAL:
+            # Save current time to the log file.
+            save(LOGPATH, load(LOGPATH)+'\n%i' % int(time.time()))
+        
+        if SHOWLASTLOGIN:
+            lastlogin = time.asctime(time.localtime(last))
+            end = '.'
+            if SHOWTIMESINCELASTLOGIN:
+                end = ', which was %s ago.' % printTime(int(time.time()) - last, 14, True)[:-1]
+            print('Last recorded login was on %s%s' % (lastlogin, end))
+        elif SHOWTIMESINCELASTLOGIN:
+            print('Last recored login was %s ago.' % printTime(int(time.time()) - last, 14, True))
+
+# If not imported as a module, run the main program
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
